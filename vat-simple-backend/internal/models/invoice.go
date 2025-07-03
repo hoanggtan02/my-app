@@ -31,11 +31,10 @@ type InvoiceItem struct {
 
 // CreateInvoiceRequest defines the payload for creating a new invoice.
 type CreateInvoiceRequest struct {
-	CustomerID    string                     `json:"customer_id" binding:"required"`
-	InvoiceNumber string                     `json:"invoice_number"`
-	IssueDate     time.Time                  `json:"issue_date" binding:"required"`
-	DueDate       time.Time                  `json:"due_date" binding:"required"`
-	Items         []CreateInvoiceItemRequest `json:"items" binding:"required,min=1,dive"`
+	Items []struct {
+		ProductID string `json:"product_id" binding:"required"`
+		Quantity  int    `json:"quantity" binding:"required,gt=0"`
+	} `json:"items" binding:"required,min=1"`
 }
 
 // CreateInvoiceItemRequest is a sub-struct for invoice creation.

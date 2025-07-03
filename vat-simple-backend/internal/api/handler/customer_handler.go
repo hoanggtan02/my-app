@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -58,12 +59,17 @@ func (h *CustomerHandler) GetCustomer(c *gin.Context) {
 // ListCustomers handles listing all customers for a company.
 func (h *CustomerHandler) ListCustomers(c *gin.Context) {
 	companyID, _ := c.Get("companyID")
+	log.Printf("[DEBUG] Đang lấy khách hàng cho company_id: %s", companyID.(string))
 
 	customers, appErr := h.customerService.ListCustomers(companyID.(string))
 	if appErr != nil {
+		log.Printf("[ERROR] Service trả về lỗi: %v", appErr)
 		c.JSON(appErr.StatusCode, appErr)
 		return
 	}
+
+	// Dòng log quan trọng nhất: In ra dữ liệu ngay trước khi gửi về client
+	log.Printf("[DEBUG] Dữ liệu chuẩn bị gửi về client (%d items): %+v", len(customers), customers)
 
 	c.JSON(http.StatusOK, customers)
 }
@@ -75,21 +81,17 @@ func (h *CustomerHandler) UpdateCustomer(c *gin.Context) {
 
 	var req models.UpdateCustomerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		if appErr := utils.ValidateStruct(&req); appErr != nil {
-			c.JSON(appErr.StatusCode, appErr)
-			return
-		}
-		c.JSON(http.StatusBadRequest, errors.NewAppError(http.StatusBadRequest, "Invalid request body", errors.WithCause(err)))
+		c.JSON(http.StatusBadRequest, errors.NewAppError(http.StatusBadRequest, "Invalid request body"))
 		return
 	}
 
-	updatedCustomer, appErr := h.customerService.UpdateCustomer(customerID, &req, companyID.(string))
-	if appErr != nil {
+	// Sửa lại dòng này: chỉ nhận 1 giá trị trả về là lỗi
+	if appErr := h.customerService.UpdateCustomer(customerID, companyID.(string), &req); appErr != nil {
 		c.JSON(appErr.StatusCode, appErr)
 		return
 	}
 
-	c.JSON(http.StatusOK, updatedCustomer)
+	c.JSON(http.StatusOK, gin.H{"message": "Customer updated successfully"})
 }
 
 // DeleteCustomer handles deleting a customer.

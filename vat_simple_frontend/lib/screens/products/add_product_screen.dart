@@ -16,6 +16,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   String _name = '';
   String _description = '';
   double _unitPrice = 0.0;
+  String _imageUrl = ''; // <-- Thêm biến cho image url
 
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
@@ -24,7 +25,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
     final token = Provider.of<AuthProvider>(context, listen: false).token!;
     try {
-      await ProductService().createProduct(token, _name, _description, _unitPrice);
+      // Thêm _imageUrl vào hàm gọi API
+      await ProductService().createProduct(token, _name, _description, _unitPrice, _imageUrl);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -64,6 +66,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   return null;
                 },
                 onSaved: (v) => _unitPrice = double.parse(v!),
+              ),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'URL Hình ảnh'),
+                keyboardType: TextInputType.url,
+                onSaved: (v) => _imageUrl = v ?? '',
               ),
               const SizedBox(height: 20),
               if (_isLoading)

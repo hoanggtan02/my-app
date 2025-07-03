@@ -29,6 +29,9 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	productHandler := handler.NewProductHandler(productService)
 	invoiceHandler := handler.NewInvoiceHandler(invoiceService, productService)
 
+	reportService := service.NewReportService(invoiceRepo)
+	reportHandler := handler.NewReportHandler(reportService)
+
 	// Cài đặt Gin router
 	r := gin.Default()
 
@@ -76,6 +79,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 			{
 				productRoutes.POST("", productHandler.CreateProduct)
 				productRoutes.GET("", productHandler.ListProducts)
+				productRoutes.PATCH("/:id", productHandler.UpdateProduct)
 			}
 
 			invoiceRoutes := protected.Group("/invoices")
@@ -83,6 +87,11 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 				invoiceRoutes.POST("", invoiceHandler.CreateInvoice)
 				invoiceRoutes.GET("", invoiceHandler.ListInvoices)
 				invoiceRoutes.GET("/:id", invoiceHandler.GetInvoice)
+			}
+
+			reportRoutes := protected.Group("/reports")
+			{
+				reportRoutes.GET("/sales", reportHandler.GetSalesOverTime)
 			}
 		}
 	}

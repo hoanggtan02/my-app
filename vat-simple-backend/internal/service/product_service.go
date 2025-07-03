@@ -1,6 +1,7 @@
 package service
 
 import (
+	"database/sql"
 	"log"
 
 	"github.com/hoanggtan02/my-app/vat-simple-backend/internal/models"
@@ -11,6 +12,7 @@ import (
 type ProductService interface {
 	CreateProduct(req *models.CreateProductRequest, companyID string) (*models.Product, *errors.AppError)
 	ListProducts(companyID string) ([]models.Product, *errors.AppError)
+	UpdateProduct(productID string, req *models.UpdateProductRequest) *errors.AppError // <-- Thêm hàm mới
 }
 
 type productServiceImpl struct {
@@ -22,13 +24,23 @@ func NewProductService(repo repository.ProductRepository) ProductService {
 }
 
 func (s *productServiceImpl) CreateProduct(req *models.CreateProductRequest, companyID string) (*models.Product, *errors.AppError) {
+	description := sql.NullString{}
+	if req.Description != "" {
+		description.String = req.Description
+		description.Valid = true
+	}
+	imageUrl := sql.NullString{}
+	if req.ImageURL != "" {
+		imageUrl.String = req.ImageURL
+		imageUrl.Valid = true
+	}
 	product := &models.Product{
 		Name:        req.Name,
-		Description: req.Description,
-		UnitPrice:   req.UnitPrice, // <-- Lỗi xảy ra ở đây, code này đã đúng
+		Description: description,
+		UnitPrice:   req.UnitPrice,
+		ImageURL:    imageUrl,
 		CompanyID:   companyID,
 	}
-
 	if err := s.productRepo.CreateProduct(product); err != nil {
 		log.Printf("Error creating product in repo: %v", err)
 		return nil, errors.ErrInternalServerError
@@ -43,4 +55,13 @@ func (s *productServiceImpl) ListProducts(companyID string) ([]models.Product, *
 		return nil, errors.ErrInternalServerError
 	}
 	return products, nil
+}
+
+// UpdateProduct (Hàm mới)
+func (s *productServiceImpl) UpdateProduct(productID string, req *models.UpdateProductRequest) *errors.AppError {
+	if err := s.productRepo.UpdateProduct(productID, req); err != nil {
+		log.Printf("Error updating product in repo: %v", err)
+		return errors.ErrInternalServerError
+	}
+	return nil
 }

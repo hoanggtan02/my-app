@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"time"
 
 	"github.com/hoanggtan02/my-app/vat-simple-backend/internal/models"
 	"github.com/hoanggtan02/my-app/vat-simple-backend/internal/repository"
@@ -33,63 +34,60 @@ func NewInvoiceService(invoiceRepo repository.InvoiceRepository, customerRepo re
 }
 
 func (s *invoiceServiceImpl) CreateInvoice(req *models.CreateInvoiceRequest, companyID string) (*models.Invoice, *errors.AppError) {
-	// 1. Validate customer existence
-	_, err := s.customerRepo.GetCustomerByID(req.CustomerID, companyID)
+	// --- Tự động tìm hoặc tạo "Khách vãng lai" ---
+	customer, err := s.customerRepo.FindCustomerByName("Khách vãng lai", companyID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errors.NewAppError(http.StatusBadRequest, "Customer not found", errors.WithCode("CUSTOMER_NOT_FOUND"))
+			// Nếu chưa có, tạo mới
+			walkInCustomer := &models.Customer{
+				Name:      "Khách vãng lai",
+				CompanyID: companyID,
+			}
+			err = s.customerRepo.CreateCustomer(walkInCustomer)
+			if err != nil {
+				log.Printf("Error creating walk-in customer: %v", err)
+				return nil, errors.ErrInternalServerError
+			}
+			customer = walkInCustomer
+		} else {
+			return nil, errors.ErrInternalServerError
 		}
-		return nil, errors.ErrInternalServerError
 	}
 
-	// 2. Process invoice items and calculate totals
+	// --- Xử lý sản phẩm và tính toán (giữ nguyên logic cũ) ---
 	var invoiceItems []models.InvoiceItem
 	var subtotal float64 = 0
-
 	for _, itemReq := range req.Items {
 		product, err := s.productRepo.GetProductByID(itemReq.ProductID, companyID)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				return nil, errors.NewAppError(http.StatusBadRequest, fmt.Sprintf("Product with ID %s not found", itemReq.ProductID), errors.WithCode("PRODUCT_NOT_FOUND"))
-			}
-			return nil, errors.ErrInternalServerError
+			return nil, errors.NewAppError(http.StatusBadRequest, fmt.Sprintf("Product with ID %s not found", itemReq.ProductID), errors.WithCode("PRODUCT_NOT_FOUND"))
 		}
-
 		totalPrice := float64(itemReq.Quantity) * product.UnitPrice
 		subtotal += totalPrice
-
 		invoiceItems = append(invoiceItems, models.InvoiceItem{
 			ProductID:   itemReq.ProductID,
-			Description: product.Name, // Use product name as description
+			Description: product.Name,
 			Quantity:    itemReq.Quantity,
 			UnitPrice:   product.UnitPrice,
 			TotalPrice:  totalPrice,
 		})
 	}
-
-	// 3. Calculate tax and total (assuming a flat 10% VAT for simplicity)
 	tax := subtotal * 0.10
 	total := subtotal + tax
 
-	// Round to 2 decimal places
-	subtotal = math.Round(subtotal*100) / 100
-	tax = math.Round(tax*100) / 100
-	total = math.Round(total*100) / 100
-
-	// 4. Create the main invoice object
+	// --- Tạo đối tượng hóa đơn với các thông tin tự động ---
 	invoice := &models.Invoice{
 		CompanyID:     companyID,
-		CustomerID:    req.CustomerID,
-		InvoiceNumber: req.InvoiceNumber, // In a real app, this should be generated automatically
-		IssueDate:     req.IssueDate,
-		DueDate:       req.DueDate,
-		Subtotal:      subtotal,
-		Tax:           tax,
-		Total:         total,
-		Status:        "draft", // Default status
+		CustomerID:    customer.ID,                              // <-- Dùng ID của khách vãng lai
+		InvoiceNumber: fmt.Sprintf("POS-%d", time.Now().Unix()), // <-- Tự tạo số hóa đơn
+		IssueDate:     time.Now(),                               // <-- Lấy ngày hiện tại
+		DueDate:       time.Now(),                               // <-- Lấy ngày hiện tại
+		Subtotal:      math.Round(subtotal*100) / 100,
+		Tax:           math.Round(tax*100) / 100,
+		Total:         math.Round(total*100) / 100,
+		Status:        "paid", // Trạng thái "đã thanh toán"
 	}
 
-	// 5. Save to database
 	createdInvoice, repoErr := s.invoiceRepo.CreateInvoice(invoice, invoiceItems)
 	if repoErr != nil {
 		log.Printf("Error creating invoice in repo: %v", repoErr)

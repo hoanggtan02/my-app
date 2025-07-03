@@ -12,6 +12,7 @@ type InvoiceRepository interface {
 	CreateInvoice(invoice *models.Invoice, items []models.InvoiceItem) (*models.Invoice, error)
 	GetInvoiceByID(invoiceID, companyID string) (*models.Invoice, error)
 	GetInvoicesByCompanyID(companyID string) ([]models.Invoice, error)
+	GetSalesOverTime(companyID, startDate, endDate string) ([]models.SalesDataPoint, error)
 }
 
 type invoiceRepositoryImpl struct {
@@ -136,4 +137,37 @@ func (r *invoiceRepositoryImpl) GetInvoicesByCompanyID(companyID string) ([]mode
 		invoices = append(invoices, invoice)
 	}
 	return invoices, nil
+}
+
+func (r *invoiceRepositoryImpl) GetSalesOverTime(companyID, startDate, endDate string) ([]models.SalesDataPoint, error) {
+	// Sửa lại câu lệnh SQL để dùng hàm DATE()
+	query := `
+		SELECT 
+			DATE(issue_date) as sale_date, 
+			SUM(total) as daily_revenue 
+		FROM invoices
+		WHERE 
+			company_id = ? AND 
+			DATE(issue_date) BETWEEN ? AND ?
+		GROUP BY 
+			sale_date
+		ORDER BY 
+			sale_date ASC;
+	`
+	rows, err := r.db.Query(query, companyID, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	salesData := make([]models.SalesDataPoint, 0)
+	for rows.Next() {
+		var dataPoint models.SalesDataPoint
+		if err := rows.Scan(&dataPoint.Date, &dataPoint.Revenue); err != nil {
+			return nil, err
+		}
+		salesData = append(salesData, dataPoint)
+	}
+
+	return salesData, nil
 }

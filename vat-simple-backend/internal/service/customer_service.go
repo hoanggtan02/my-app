@@ -14,7 +14,7 @@ type CustomerService interface {
 	CreateCustomer(req *models.CreateCustomerRequest, companyID string) (*models.Customer, *errors.AppError)
 	GetCustomer(customerID, companyID string) (*models.Customer, *errors.AppError)
 	ListCustomers(companyID string) ([]models.Customer, *errors.AppError)
-	UpdateCustomer(customerID string, req *models.UpdateCustomerRequest, companyID string) (*models.Customer, *errors.AppError)
+	UpdateCustomer(customerID, companyID string, req *models.UpdateCustomerRequest) *errors.AppError // <-- Sửa kiểu trả về
 	DeleteCustomer(customerID, companyID string) *errors.AppError
 }
 
@@ -65,29 +65,21 @@ func (s *customerServiceImpl) ListCustomers(companyID string) ([]models.Customer
 	return customers, nil
 }
 
-func (s *customerServiceImpl) UpdateCustomer(customerID string, req *models.UpdateCustomerRequest, companyID string) (*models.Customer, *errors.AppError) {
-	// First, check if customer exists and belongs to the company
+// --- HÀM ĐÃ ĐƯỢC SỬA LẠI CHO ĐÚNG ---
+func (s *customerServiceImpl) UpdateCustomer(customerID, companyID string, req *models.UpdateCustomerRequest) *errors.AppError {
+	// Kiểm tra xem khách hàng có tồn tại và thuộc công ty không
 	_, appErr := s.GetCustomer(customerID, companyID)
 	if appErr != nil {
-		return nil, appErr
+		return appErr
 	}
 
-	customer := &models.Customer{
-		ID:        customerID,
-		Name:      req.Name,
-		TaxCode:   req.TaxCode,
-		Address:   req.Address,
-		Email:     req.Email,
-		Phone:     req.Phone,
-		CompanyID: companyID,
-	}
-
-	if err := s.customerRepo.UpdateCustomer(customer); err != nil {
+	// Truyền thẳng request xuống repository
+	if err := s.customerRepo.UpdateCustomer(customerID, companyID, req); err != nil {
 		log.Printf("Error updating customer in repo: %v", err)
-		return nil, errors.ErrInternalServerError
+		return errors.ErrInternalServerError
 	}
 
-	return customer, nil
+	return nil
 }
 
 func (s *customerServiceImpl) DeleteCustomer(customerID, companyID string) *errors.AppError {

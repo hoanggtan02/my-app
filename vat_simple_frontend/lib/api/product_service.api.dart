@@ -12,6 +12,12 @@ class ProductService {
         url,
         headers: {'Authorization': 'Bearer $token'},
       );
+
+      print('--- DEBUG PRODUCTS ---');
+      print('Status Code: ${response.statusCode}');
+      print('Raw Response Body: ${response.body}');
+      print('----------------------');
+
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((item) => Product.fromJson(item)).toList();
@@ -19,12 +25,14 @@ class ProductService {
         throw Exception('Failed to load products');
       }
     } catch (e) {
-      throw Exception('Could not connect to server');
+      print('Lỗi tại ProductService: $e');
+      throw Exception('Could not process product data.');
     }
   }
 
   // Tạo sản phẩm mới
-  Future<void> createProduct(String token, String name, String? description, double unitPrice) async {
+// trong class ProductService
+  Future<void> createProduct(String token, String name, String? description, double unitPrice, String imageUrl) async {
     final url = Uri.parse('$apiUrl/products');
     try {
       final response = await http.post(
@@ -37,6 +45,7 @@ class ProductService {
           'name': name,
           'description': description,
           'unit_price': unitPrice,
+          'image_url': imageUrl, // <-- Thêm image_url vào body
         }),
       );
       if (response.statusCode != 201) {
